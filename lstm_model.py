@@ -9,6 +9,9 @@ import re
 import sqlite3
 import pandas as pd
 import nltk
+import operator
+import functools
+import collections
 
 learning_rate = 0.001
 training_iters = 100000
@@ -41,26 +44,39 @@ def train_model():
     }
     x = tf.placeholder("float", [None, n_input, 1])
     y = tf.placeholder("float", [None, total_vocab_size])
-    model  = get_model(x, weights, biases)
+    model = get_model(x, weights, biases)
 
+def get_word_features(word_map, word_list):
+    return [word_map.get(i, len(word_map.keys())) for i in word_list]
+
+def get_features_from_inputs(tokenized_lists):
+    full_list = functools.reduce(operator.concat, tokenized_lists)
+    #freq = nltk.FreqDist(full_list)
+    counted_list = collections.Counter(full_list).most_common(100)
+    word_id_map = {}
+    for count, i in enumerate(counted_list):
+        word_id_map[i[0]] = count
+
+    for i in tokenized_lists:
+        get_word_features(i)
+        print(i)
+        print()
 
 def get_input_text_from_comment_chain(comment_chain):
     formatted_chain = []
     for i in comment_chain:
         formatted_chain.append(i.replace(r'\n', paragraph_marker).replace(r'\t', tab_marker).replace(r'\r',return_marker))
-    text_line = new_comment_marker.join(formatted_chain)
-    tokenized_input = nltk.word_tokenize(text_line)
-    print(tokenized_input)
+    text_line = new_comment_marker.join(formatted_chain) + new_comment_marker
+    return nltk.word_tokenize(text_line)
 
-
-def get_data(num_of_comment_roots = 100):
+def get_data(num_of_comment_roots = 10):
     with sqlite3.connect(db_location) as conn:
         # get root comments
         p_df = pd.read_sql('select * from comments where parent_id is Null', conn)
 
         comment_chains = []
         for count, (i, j) in enumerate(p_df.iterrows()):
-            if count > 10:
+            if count > num_of_comment_roots:
                 break
             comment_chain = []
 
@@ -81,8 +97,13 @@ def get_data(num_of_comment_roots = 100):
                 else:
                     break
             comment_chains.append(comment_chain)
+
+    tokenized_inputs = []
     for i in comment_chains:
-        get_input_text_from_comment_chain(i)
+        tokenized_inputs.append(get_input_text_from_comment_chain(i))
+    get_features_from_inputs()
+
+
 
 
 get_data()
