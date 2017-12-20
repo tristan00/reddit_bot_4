@@ -1,4 +1,5 @@
 import numpy as np
+import configparser
 import tensorflow as tf
 from tensorflow.contrib import rnn
 import random
@@ -12,22 +13,31 @@ import nltk
 import operator
 import functools
 import collections
+import pickle
 import math
+from sklearn.manifold import TSNE
+import traceback
+import os
+from tempfile import gettempdir
+import matplotlib.pyplot as plt
+
+config = configparser.ConfigParser()
 
 paragraph_marker = ' marker_new_paragraph '
 new_comment_marker = ' marker_new_comment '
 tab_marker = ' marker_new_paragraph '
 return_marker = ' marker_return '
-vocabulary_size = 50000
+vocabulary_size = 250000
 db_location = r'C:\Users\tdelforge\Documents\project_dbs\reddit\reddit.db'
 batch_size = 128
-embedding_size = 128  # Dimension of the embedding vector.
+embedding_size = 512  # Dimension of the embedding vector.
 skip_window = 1       # How many words to consider left and right.
 num_skips = 2         # How many times to reuse an input to generate a label.
 num_sampled = 64
 valid_size = 16     # Random set of words to evaluate similarity on.
 valid_window = 100  # Only pick dev samples in the head of the distribution.
 valid_examples = np.random.choice(valid_window, valid_size, replace=False)
+data_index = 0
 
 
 def build_dataset(words, n_words):
@@ -70,34 +80,69 @@ def get_input_text_from_comment_chain(comment_chain):
     text_line = new_comment_marker.join(formatted_chain) + new_comment_marker
     return nltk.word_tokenize(text_line)
 
-def get_data(num_of_comment_roots = 10):
+def get_child_list(df, c_id):
+    child_df = df[df['parent_id'] == c_id]
+    child_df = child_df.sort_values(by='score', ascending=False)
+    if child_df.shape[0] == 0:
+        return []
+    else:
+        return [child_df['body'].iloc[0]] + get_child_list(df, child_df['c_id'].iloc[0])
+
+def get_data2():
+    with sqlite3.connect(db_location) as conn:
+        posts = conn.execute('select p_id, title from posts order by score desc').fetchall()
+
+        comment_chains = []
+        for count, (p_id, title) in enumerate(posts):
+            print(count, len(comment_chains))
+            df = pd.read_sql('select * from comments where p_id = ?', conn, params=(p_id,))
+            roots = df[df['parent_id'].isnull()]
+            for _, root in roots.iterrows():
+                comment_chain = []
+                comment_chain.append(title)
+                comment_chain.append(root['body'])
+                child_list = get_child_list(df, root['c_id'])
+                if len(child_list) > 0:
+                    comment_chain.extend(child_list)
+                    comment_chains.append(comment_chain)
+        tokenized_inputs = []
+        for i in comment_chains:
+            tokenized_inputs.append(get_input_text_from_comment_chain(i))
+        # get_features_from_inputs()
+        return tokenized_inputs
+
+def get_data(num_of_comment_roots = 100000):
     with sqlite3.connect(db_location) as conn:
         # get root comments
         p_df = pd.read_sql('select * from comments where parent_id is Null', conn)
 
         comment_chains = []
         for count, (i, j) in enumerate(p_df.iterrows()):
-            if count > num_of_comment_roots:
-                break
-            comment_chain = []
-
-            #get parent title
-            title_text = conn.execute('select title from posts where p_id = ? limit 1', (j['p_id'], )).fetchone()[0]
-            comment_chain.append(title_text)
-
-            #add root comment
-            comment_chain.append(j['body'])
-
-            #for now pick highest score child
-            parent_id = j['c_id']
-            while True:
-                next_child = conn.execute('select body, c_id from comments where parent_id = ? order by score DESC', (parent_id,)).fetchone()
-                if next_child:
-                    reply_text, parent_id = next_child
-                    comment_chain.append(reply_text)
-                else:
+            try:
+                print(count)
+                if count > num_of_comment_roots:
                     break
-            comment_chains.append(comment_chain)
+                comment_chain = []
+
+                #get parent title
+                title_text = conn.execute('select title from posts where p_id = ? limit 1', (j['p_id'], )).fetchone()[0]
+                comment_chain.append(title_text)
+
+                #add root comment
+                comment_chain.append(j['body'])
+
+                #for now pick highest score child
+                parent_id = j['c_id']
+                while True:
+                    next_child = conn.execute('select body, c_id from comments where parent_id = ? order by score DESC', (parent_id,)).fetchone()
+                    if next_child:
+                        reply_text, parent_id = next_child
+                        comment_chain.append(reply_text)
+                    else:
+                        break
+                comment_chains.append(comment_chain)
+            except:
+                traceback.print_exc()
 
     tokenized_inputs = []
     for i in comment_chains:
@@ -105,7 +150,8 @@ def get_data(num_of_comment_roots = 10):
     #get_features_from_inputs()
     return tokenized_inputs
 
-def generate_batch(batch_size, num_skips, skip_window, data, data_index):
+def generate_batch(batch_size, num_skips, skip_window, data):
+    global data_index
     assert batch_size % num_skips == 0
     assert num_skips <= 2 * skip_window
     batch = np.ndarray(shape=(batch_size), dtype=np.int32)
@@ -132,7 +178,7 @@ def generate_batch(batch_size, num_skips, skip_window, data, data_index):
     data_index = (data_index + len(data) - span) % len(data)
     return batch, labels
 
-def run_model(reverse_dictionary,data, data_index):
+def run_model(reverse_dictionary,data):
     graph = tf.Graph()
     with graph.as_default():
         train_inputs = tf.placeholder(tf.int32, shape=[batch_size])
@@ -165,7 +211,7 @@ def run_model(reverse_dictionary,data, data_index):
 
         init = tf.global_variables_initializer()
 
-    num_steps = 100001
+    num_steps = 1000001
 
     with tf.Session(graph=graph) as session:
         # We must initialize all variables before we use them.
@@ -174,7 +220,7 @@ def run_model(reverse_dictionary,data, data_index):
 
         average_loss = 0
         for step in range(num_steps):
-            batch_inputs, batch_labels = generate_batch(batch_size, num_skips, skip_window, data, data_index)
+            batch_inputs, batch_labels = generate_batch(batch_size, num_skips, skip_window, data)
             feed_dict = {train_inputs: batch_inputs, train_labels: batch_labels}
 
             # We perform one update step by evaluating the optimizer op (including it
@@ -201,22 +247,48 @@ def run_model(reverse_dictionary,data, data_index):
                         close_word = reverse_dictionary[nearest[k]]
                         log_str = '%s %s,' % (log_str, close_word)
                     print(log_str)
-        final_embeddings = normalized_embeddings.eval()
+        return  normalized_embeddings.eval()
 
+def plot_with_labels(low_dim_embs, labels, filename):
+    assert low_dim_embs.shape[0] >= len(labels), 'More labels than embeddings'
+    plt.figure(figsize=(18, 18))  # in inches
+    for i, label in enumerate(labels):
+        x, y = low_dim_embs[i, :]
+        plt.scatter(x, y)
+        plt.annotate(label,
+         xy=(x, y),
+         xytext=(5, 2),
+         textcoords='offset points',
+         ha='right',
+         va='bottom')
+    plt.savefig(filename)
 
 def main():
-    inputs = get_data()
+    inputs = get_data2()
     vocab = functools.reduce(operator.concat, inputs)
     data, count, dictionary, reverse_dictionary = build_dataset(vocab, vocabulary_size)
+    del vocab
     print('Most common words (+UNK)', count[:5])
     print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
 
-    data_index = 0
-    batch, labels = generate_batch(batch_size=8, num_skips=2, skip_window=1, data=data, data_index=data_index)
+    batch, labels = generate_batch(batch_size=8, num_skips=2, skip_window=1, data=data)
     for i in range(8):
         print(batch[i], reverse_dictionary[batch[i]],
               '->', labels[i, 0], reverse_dictionary[labels[i, 0]])
-    run_model(reverse_dictionary=reverse_dictionary,data=data, data_index=data_index)
+    final_embeddings = run_model(reverse_dictionary=reverse_dictionary,data=data)
+
+    with open('models/final_embeddings.plk', 'wb') as f:
+        pickle.dump(final_embeddings, f)
+    with open('models/dictionary.plk', 'wb') as f:
+        pickle.dump(dictionary, f)
+    with open('models/reverse_dictionary.plk', 'wb') as f:
+        pickle.dump(reverse_dictionary, f)
+
+    # tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=20000, method='exact')
+    # plot_only = 1000
+    # low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
+    # labels = [reverse_dictionary[i] for i in range(plot_only)]
+    # plot_with_labels(low_dim_embs, labels,  'tsne.png')
 
 
 if __name__ == '__main__':
