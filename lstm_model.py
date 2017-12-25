@@ -62,48 +62,4 @@ def get_features_from_inputs(tokenized_lists):
         print(i)
         print()
 
-def get_input_text_from_comment_chain(comment_chain):
-    formatted_chain = []
-    for i in comment_chain:
-        formatted_chain.append(i.replace(r'\n', paragraph_marker).replace(r'\t', tab_marker).replace(r'\r',return_marker))
-    text_line = new_comment_marker.join(formatted_chain) + new_comment_marker
-    return nltk.word_tokenize(text_line)
-
-def get_data(num_of_comment_roots = 10):
-    with sqlite3.connect(db_location) as conn:
-        # get root comments
-        p_df = pd.read_sql('select * from comments where parent_id is Null', conn)
-
-        comment_chains = []
-        for count, (i, j) in enumerate(p_df.iterrows()):
-            if count > num_of_comment_roots:
-                break
-            comment_chain = []
-
-            #get parent title
-            title_text = conn.execute('select title from posts where p_id = ? limit 1', (j['p_id'], )).fetchone()[0]
-            comment_chain.append(title_text)
-
-            #add root comment
-            comment_chain.append(j['body'])
-
-            #for now pick highest score child
-            parent_id = j['c_id']
-            while True:
-                next_child = conn.execute('select body, c_id from comments where parent_id = ? order by score DESC', (parent_id,)).fetchone()
-                if next_child:
-                    reply_text, parent_id = next_child
-                    comment_chain.append(reply_text)
-                else:
-                    break
-            comment_chains.append(comment_chain)
-
-    tokenized_inputs = []
-    for i in comment_chains:
-        tokenized_inputs.append(get_input_text_from_comment_chain(i))
-    get_features_from_inputs()
-
-
-
-
-get_data()
+if __

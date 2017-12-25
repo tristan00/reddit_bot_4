@@ -30,7 +30,7 @@ return_marker = ' marker_return '
 vocabulary_size = 250000
 db_location = r'C:\Users\tdelforge\Documents\project_dbs\reddit\reddit.db'
 batch_size = 128
-embedding_size = 512  # Dimension of the embedding vector.
+embedding_size = 256  # Dimension of the embedding vector.
 skip_window = 1       # How many words to consider left and right.
 num_skips = 2         # How many times to reuse an input to generate a label.
 num_sampled = 64
@@ -44,15 +44,21 @@ def build_dataset(words, n_words):
     count = [['UNK', -1]]
     count.extend(collections.Counter(words).most_common(n_words - 1))
     dictionary = dict()
-    for word, _ in count:
+    print('building dict')
+    for i, (word, _) in enumerate(count):
         dictionary[word] = len(dictionary)
+        if i %1000 == 0:
+            print('building dict', i, len(count), time.time())
     data = list()
     unk_count = 0
+    print('mapping data')
     for word in words:
         index = dictionary.get(word, 0)
         if index == 0:  # dictionary['UNK']
             unk_count += 1
         data.append(index)
+        if i % 1000 == 0:
+            print('mapping data', i, len(count), time.time())
     count[0][1] = unk_count
     reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
     return data, count, dictionary, reversed_dictionary
@@ -88,67 +94,35 @@ def get_child_list(df, c_id):
     else:
         return [child_df['body'].iloc[0]] + get_child_list(df, child_df['c_id'].iloc[0])
 
-def get_data2():
+def get_data():
     with sqlite3.connect(db_location) as conn:
         posts = conn.execute('select p_id, title from posts order by score desc').fetchall()
 
+        comments_df = pd.read_sql('select * from comments order by p_id', conn)
         comment_chains = []
         for count, (p_id, title) in enumerate(posts):
-            print(count, len(comment_chains))
-            df = pd.read_sql('select * from comments where p_id = ?', conn, params=(p_id,))
-            roots = df[df['parent_id'].isnull()]
+            if count > 20000:
+                break
+            print(count, len(comment_chains), time.time())
+            #df = pd.read_sql('select * from comments where p_id = ?', conn, params=(p_id,))
+            post_comments_df = comments_df[comments_df['p_id'] == p_id]
+            roots = post_comments_df[post_comments_df['parent_id'].isnull()]
             for _, root in roots.iterrows():
                 comment_chain = []
                 comment_chain.append(title)
                 comment_chain.append(root['body'])
-                child_list = get_child_list(df, root['c_id'])
+                child_list = get_child_list(post_comments_df, root['c_id'])
                 if len(child_list) > 0:
                     comment_chain.extend(child_list)
                     comment_chains.append(comment_chain)
         tokenized_inputs = []
-        for i in comment_chains:
+        print('tokenizing')
+        for count, i in enumerate(comment_chains):
             tokenized_inputs.append(get_input_text_from_comment_chain(i))
+            if count %1000 == 0:
+                print('tokenized:', count, time.time())
         # get_features_from_inputs()
         return tokenized_inputs
-
-def get_data(num_of_comment_roots = 100000):
-    with sqlite3.connect(db_location) as conn:
-        # get root comments
-        p_df = pd.read_sql('select * from comments where parent_id is Null', conn)
-
-        comment_chains = []
-        for count, (i, j) in enumerate(p_df.iterrows()):
-            try:
-                print(count)
-                if count > num_of_comment_roots:
-                    break
-                comment_chain = []
-
-                #get parent title
-                title_text = conn.execute('select title from posts where p_id = ? limit 1', (j['p_id'], )).fetchone()[0]
-                comment_chain.append(title_text)
-
-                #add root comment
-                comment_chain.append(j['body'])
-
-                #for now pick highest score child
-                parent_id = j['c_id']
-                while True:
-                    next_child = conn.execute('select body, c_id from comments where parent_id = ? order by score DESC', (parent_id,)).fetchone()
-                    if next_child:
-                        reply_text, parent_id = next_child
-                        comment_chain.append(reply_text)
-                    else:
-                        break
-                comment_chains.append(comment_chain)
-            except:
-                traceback.print_exc()
-
-    tokenized_inputs = []
-    for i in comment_chains:
-        tokenized_inputs.append(get_input_text_from_comment_chain(i))
-    #get_features_from_inputs()
-    return tokenized_inputs
 
 def generate_batch(batch_size, num_skips, skip_window, data):
     global data_index
@@ -169,7 +143,8 @@ def generate_batch(batch_size, num_skips, skip_window, data):
             batch[i * num_skips + j] = buffer[skip_window]
             labels[i * num_skips + j, 0] = buffer[context_word]
         if data_index == len(data):
-            buffer[:] = data[:span]
+            for word in data[:span]:
+                buffer.append(word)
             data_index = span
         else:
             buffer.append(data[data_index])
@@ -201,7 +176,7 @@ def run_model(reverse_dictionary,data):
                            inputs=embed,
                            num_sampled=num_sampled,
                            num_classes=vocabulary_size))
-        optimizer = tf.train.GradientDescentOptimizer(1.0).minimize(loss)
+        optimizer = tf.train.AdamOptimizer().minimize(loss)
         norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
         normalized_embeddings = embeddings / norm
         valid_embeddings = tf.nn.embedding_lookup(
@@ -211,7 +186,7 @@ def run_model(reverse_dictionary,data):
 
         init = tf.global_variables_initializer()
 
-    num_steps = 1000001
+    num_steps = 100001
 
     with tf.Session(graph=graph) as session:
         # We must initialize all variables before we use them.
@@ -228,9 +203,9 @@ def run_model(reverse_dictionary,data):
             _, loss_val = session.run([optimizer, loss], feed_dict=feed_dict)
             average_loss += loss_val
 
-            if step % 2000 == 0:
+            if step % 1000 == 0:
                 if step > 0:
-                    average_loss /= 2000
+                    average_loss /= 1000
                 # The average loss is an estimate of the loss over the last 2000 batches.
                 print('Average loss at step ', step, ': ', average_loss)
                 average_loss = 0
@@ -247,7 +222,7 @@ def run_model(reverse_dictionary,data):
                         close_word = reverse_dictionary[nearest[k]]
                         log_str = '%s %s,' % (log_str, close_word)
                     print(log_str)
-        return  normalized_embeddings.eval()
+        return normalized_embeddings.eval()
 
 def plot_with_labels(low_dim_embs, labels, filename):
     assert low_dim_embs.shape[0] >= len(labels), 'More labels than embeddings'
@@ -263,11 +238,42 @@ def plot_with_labels(low_dim_embs, labels, filename):
          va='bottom')
     plt.savefig(filename)
 
+def save_vocad(data, count, dictionary, reverse_dictionary):
+    with open('models/data.plk', 'wb') as f:
+        pickle.dump(data, f)
+    with open('models/count.plk', 'wb') as f:
+        pickle.dump(count, f)
+    with open('models/dictionary.plk', 'wb') as f:
+        pickle.dump(dictionary, f)
+    with open('models/reverse_dictionary.plk', 'wb') as f:
+        pickle.dump(reverse_dictionary, f)
+
+def get_saved_vocab():
+    with open('models/data.plk', 'rb') as f:
+        data = pickle.load(f)
+    with open('models/count.plk', 'rb') as f:
+        count = pickle.load(f)
+    with open('models/dictionary.plk', 'rb') as f:
+        dictionary = pickle.load(f)
+    with open('models/reverse_dictionary.plk', 'rb') as f:
+        reverse_dictionary = pickle.load(f)
+    return data, count, dictionary, reverse_dictionary
+
 def main():
-    inputs = get_data2()
-    vocab = functools.reduce(operator.concat, inputs)
-    data, count, dictionary, reverse_dictionary = build_dataset(vocab, vocabulary_size)
-    del vocab
+    try:
+        data, count, dictionary, reverse_dictionary = get_saved_vocab()
+    except:
+        traceback.print_exc()
+        inputs = get_data()
+        vocab = []
+        for count, i in enumerate(inputs):
+            vocab.extend(i)
+            if count %1000 == 0:
+                print('splitting sentences:', i, len(inputs))
+        data, count, dictionary, reverse_dictionary = build_dataset(vocab, vocabulary_size)
+        save_vocad(data, count, dictionary, reverse_dictionary)
+        del vocab
+
     print('Most common words (+UNK)', count[:5])
     print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
 
@@ -279,16 +285,12 @@ def main():
 
     with open('models/final_embeddings.plk', 'wb') as f:
         pickle.dump(final_embeddings, f)
-    with open('models/dictionary.plk', 'wb') as f:
-        pickle.dump(dictionary, f)
-    with open('models/reverse_dictionary.plk', 'wb') as f:
-        pickle.dump(reverse_dictionary, f)
 
-    # tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=20000, method='exact')
-    # plot_only = 1000
-    # low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
-    # labels = [reverse_dictionary[i] for i in range(plot_only)]
-    # plot_with_labels(low_dim_embs, labels,  'tsne.png')
+    tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=10000)
+    plot_only = 1000
+    low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
+    labels = [reverse_dictionary[i] for i in range(plot_only)]
+    plot_with_labels(low_dim_embs, labels,  'tsne.png')
 
 
 if __name__ == '__main__':
