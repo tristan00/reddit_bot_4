@@ -27,10 +27,10 @@ paragraph_marker = ' marker_new_paragraph '
 new_comment_marker = ' marker_new_comment '
 tab_marker = ' marker_new_paragraph '
 return_marker = ' marker_return '
-vocabulary_size = 250000
+vocabulary_size = 100000
 db_location = r'C:\Users\tdelforge\Documents\project_dbs\reddit\reddit.db'
 batch_size = 128
-embedding_size = 256  # Dimension of the embedding vector.
+embedding_size = 128  # Dimension of the embedding vector.
 skip_window = 1       # How many words to consider left and right.
 num_skips = 2         # How many times to reuse an input to generate a label.
 num_sampled = 64
@@ -101,7 +101,7 @@ def get_data():
         comments_df = pd.read_sql('select * from comments order by p_id', conn)
         comment_chains = []
         for count, (p_id, title) in enumerate(posts):
-            if count > 20000:
+            if count > 50000:
                 break
             print(count, len(comment_chains), time.time())
             #df = pd.read_sql('select * from comments where p_id = ?', conn, params=(p_id,))
@@ -115,6 +115,7 @@ def get_data():
                 if len(child_list) > 0:
                     comment_chain.extend(child_list)
                     comment_chains.append(comment_chain)
+        random.shuffle(comment_chains)
         tokenized_inputs = []
         print('tokenizing')
         for count, i in enumerate(comment_chains):
@@ -186,7 +187,7 @@ def run_model(reverse_dictionary,data):
 
         init = tf.global_variables_initializer()
 
-    num_steps = 100001
+    num_steps = 1000001
 
     with tf.Session(graph=graph) as session:
         # We must initialize all variables before we use them.
@@ -287,7 +288,7 @@ def main():
         pickle.dump(final_embeddings, f)
 
     tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=10000)
-    plot_only = 1000
+    plot_only = 10000
     low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
     labels = [reverse_dictionary[i] for i in range(plot_only)]
     plot_with_labels(low_dim_embs, labels,  'tsne.png')
