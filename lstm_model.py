@@ -23,17 +23,13 @@ tab_marker = ' marker_new_paragraph '
 return_marker = ' marker_return '
 count, data, dictionary, reverse_dictionary, final_embeddings = None, None, None, None, None
 
-n_input = 50
+n_input = 25
 n_hidden = 512
-training_iters = 10000
+training_iters = 100000
 learning_rate = 0.001
-display_step = 10
+display_step = 100
 vocab_size = 128
 full_input_size = n_input*vocab_size
-
-
-
-
 
 def get_training_data(data, dictionary, embeddings_df):
     training_data = []
@@ -60,15 +56,15 @@ def get_features_from_inputs(tokenized_lists):
         print()
 
 def load_models():
-    with open('models2/count.plk', 'rb') as f:
+    with open('models/count.plk', 'rb') as f:
         count = pickle.load(f)
-    with open('models2/data.plk', 'rb') as f:
+    with open('models/data.plk', 'rb') as f:
         data = pickle.load(f)
-    with open('models2/dictionary.plk', 'rb') as f:
+    with open('models/dictionary.plk', 'rb') as f:
         dictionary = pickle.load(f)
-    with open('models2/reverse_dictionary.plk', 'rb') as f:
+    with open('models/reverse_dictionary.plk', 'rb') as f:
         reverse_dictionary = pickle.load(f)
-    with open('models2/final_embeddings.plk', 'rb') as f:
+    with open('models/final_embeddings.plk', 'rb') as f:
         final_embeddings = pickle.load(f)
     return count, data, dictionary, reverse_dictionary, final_embeddings
 
@@ -114,7 +110,7 @@ def test_sentence(input_str, dictionary, max_length = 50):
         pass
         #saver.restore(sess, "models/lstm_model")
 
-def generate_inputs(embeddings_df, data, dictionary, max_len = ):
+def generate_inputs(embeddings_df, data, dictionary, max_len = 1):
     pass
 
 def get_model(x, weights, biases):
@@ -123,6 +119,10 @@ def get_model(x, weights, biases):
     rnn_cell = rnn.MultiRNNCell([rnn.BasicLSTMCell(n_hidden),rnn.BasicLSTMCell(n_hidden), rnn.BasicLSTMCell(n_hidden)])
     outputs, states = rnn.static_rnn(rnn_cell, x, dtype=tf.float32)
     return tf.matmul(outputs[-1], weights['out']) + biases['out']
+
+def convert_word_list_to_training_data(word_list, embeddings_df, count, data, dictionary, reverse_dictionary):
+    training_data = []
+    return [embeddings_df.loc[i] for i in word_list]
 
 def train_model(training_data, embeddings_df, count, data, dictionary, reverse_dictionary):
     weights = {
@@ -153,20 +153,34 @@ def train_model(training_data, embeddings_df, count, data, dictionary, reverse_d
         while step < training_iters:
             #random_start = random.randint(1, len(data)-n_input-1)
             #symbols_in_keys = [data[i] for i in range(random_start, random_start + n_input)]
-            random_start = random.randint(1, len(training_data) - n_input - 1)
-            symbols_in_keys = [training_data[i] for i in range(random_start, random_start + n_input)]
-            in_np_array = np.array(symbols_in_keys)
+
+            # random_start = random.randint(1, len(training_data) - n_input - 1)
+            # symbols_in_keys = [training_data[i] for i in range(random_start, random_start + n_input)]
+            # in_np_array = np.array(symbols_in_keys)
+            # symbols_in = np.reshape(in_np_array, (-1, full_input_size, 1))
+
+            random_start = random.randint(1, len(data) - n_input - 1)
+            symbols_in_keys = [data[i] for i in range(random_start, random_start + n_input)]
+            in_np_array = np.array(convert_word_list_to_training_data(symbols_in_keys, embeddings_df, count, data, dictionary, reverse_dictionary))
             symbols_in = np.reshape(in_np_array, (-1, full_input_size, 1))
 
             #symbols_out = np.reshape(embeddings_df.loc[data[random_start + n_input]].values, (1, -1))
-            symbols_out = np.reshape(np.array(training_data[random_start + n_input]), [1, -1])
-            _, acc, loss, onehot_pred = session.run([optimizer, accuracy, cost, model], \
-                                                    feed_dict={x: symbols_in, y: symbols_out})
+            #symbols_out = np.reshape(np.array(training_data[random_start + n_input]), [1, -1])
+            symbols_out = np.reshape(embeddings_df.loc[data[random_start + n_input]].values, (1, -1))
 
+            _, acc, loss, pred = session.run([optimizer, accuracy, cost, model], \
+                                                    feed_dict={x: symbols_in, y: symbols_out})
             loss_total += loss
             acc_total += acc
-            if step%display_step == 0:
+            if step%display_step == 0 or acc > 0:
                 print(step, acc_total/display_step, loss_total/display_step)
+                closest_words = get_closest_words_to_vector(np.array(pred[0]), embeddings_df.copy())
+                closest_word = closest_words.sort_values('similarity').head(1).index.values[0]
+                print('input sentence:', ' '.join([reverse_dictionary[i] for i in data[random_start:random_start + n_input]]))
+                print('picked {0} instead of {1}:'.format(reverse_dictionary[closest_word], reverse_dictionary[data[random_start + n_input]]))
+                print('top 10 word picks:', [reverse_dictionary[i] for i in closest_words.sort_values('similarity').head(10).index.values])
+                print()
+            if step%display_step == 0:
                 loss_total = 0
                 acc_total = 0
 

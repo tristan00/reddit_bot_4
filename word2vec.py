@@ -275,20 +275,25 @@ def main():
         save_vocad(data, count, dictionary, reverse_dictionary)
         del vocab
 
-    print('Most common words (+UNK)', count[:5])
-    print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
+    try:
+        with open('models/final_embeddings.plk', 'rb') as f:
+            final_embeddings = pickle.load(f)
+    except:
+        print('Most common words (+UNK)', count[:5])
+        print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
 
-    batch, labels = generate_batch(batch_size=8, num_skips=2, skip_window=1, data=data)
-    for i in range(8):
-        print(batch[i], reverse_dictionary[batch[i]],
-              '->', labels[i, 0], reverse_dictionary[labels[i, 0]])
-    final_embeddings = run_model(reverse_dictionary=reverse_dictionary,data=data)
+        batch, labels = generate_batch(batch_size=8, num_skips=2, skip_window=1, data=data)
+        for i in range(8):
+            print(batch[i], reverse_dictionary[batch[i]],
+                  '->', labels[i, 0], reverse_dictionary[labels[i, 0]])
+        final_embeddings = run_model(reverse_dictionary=reverse_dictionary,data=data)
 
-    with open('models/final_embeddings.plk', 'wb') as f:
-        pickle.dump(final_embeddings, f)
+        with open('models/final_embeddings.plk', 'wb') as f:
+            pickle.dump(final_embeddings, f)
 
+    print('making graph')
     tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=10000)
-    plot_only = 10000
+    plot_only = 1000
     low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
     labels = [reverse_dictionary[i] for i in range(plot_only)]
     plot_with_labels(low_dim_embs, labels,  'tsne.png')
