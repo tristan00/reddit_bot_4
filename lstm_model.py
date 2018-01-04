@@ -25,7 +25,7 @@ count, data, dictionary, reverse_dictionary, final_embeddings = None, None, None
 
 n_input = 25
 n_hidden = 512
-training_iters = 100000
+training_iters = 1000000
 learning_rate = 0.001
 display_step = 100
 vocab_size = 128
@@ -172,7 +172,7 @@ def train_model(training_data, embeddings_df, count, data, dictionary, reverse_d
                                                     feed_dict={x: symbols_in, y: symbols_out})
             loss_total += loss
             acc_total += acc
-            if step%display_step == 0 or acc > 0:
+            if step%display_step == 0:
                 print(step, acc_total/display_step, loss_total/display_step)
                 closest_words = get_closest_words_to_vector(np.array(pred[0]), embeddings_df.copy())
                 closest_word = closest_words.sort_values('similarity').head(1).index.values[0]
@@ -180,7 +180,6 @@ def train_model(training_data, embeddings_df, count, data, dictionary, reverse_d
                 print('picked {0} instead of {1}:'.format(reverse_dictionary[closest_word], reverse_dictionary[data[random_start + n_input]]))
                 print('top 10 word picks:', [reverse_dictionary[i] for i in closest_words.sort_values('similarity').head(10).index.values])
                 print()
-            if step%display_step == 0:
                 loss_total = 0
                 acc_total = 0
 
