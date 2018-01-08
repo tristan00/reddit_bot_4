@@ -1,0 +1,132 @@
+result 1:
+Model with rank: 1
+Mean validation score: 0.400 (std: 0.006)
+Parameters: {'max_depth': 5, 'max_features': None, 'n_estimators': 500}
+
+Model with rank: 2
+Mean validation score: 0.397 (std: 0.007)
+Parameters: {'max_depth': 10, 'max_features': None, 'n_estimators': 100}
+
+Model with rank: 3
+Mean validation score: 0.389 (std: 0.008)
+Parameters: {'max_depth': 10, 'max_features': None, 'n_estimators': 500}
+
+Model with rank: 4
+Mean validation score: 0.382 (std: 0.005)
+Parameters: {'max_depth': 5, 'max_features': 'sqrt', 'n_estimators': 500}
+
+Model with rank: 5
+Mean validation score: 0.381 (std: 0.005)
+Parameters: {'max_depth': 5, 'max_features': None, 'n_estimators': 100}
+
+Model with rank: 6
+Mean validation score: 0.377 (std: 0.003)
+Parameters: {'max_depth': 10, 'max_features': 'sqrt', 'n_estimators': 100}
+
+Model with rank: 7
+Mean validation score: 0.375 (std: 0.005)
+Parameters: {'max_depth': 10, 'max_features': 'sqrt', 'n_estimators': 500}
+
+Model with rank: 8
+Mean validation score: 0.355 (std: 0.005)
+Parameters: {'max_depth': 5, 'max_features': 'sqrt', 'n_estimators': 100}
+
+
+result 2:
+Model with rank: 1
+Mean validation score: 0.372 (std: 0.005)
+Parameters: {'max_depth': 20, 'max_features': None, 'n_estimators': 256}
+
+Model with rank: 2
+Mean validation score: 0.372 (std: 0.005)
+Parameters: {'max_depth': 25, 'max_features': None, 'n_estimators': 256}
+
+Model with rank: 3
+Mean validation score: 0.325 (std: 0.004)
+Parameters: {'max_depth': 25, 'max_features': 'sqrt', 'n_estimators': 256}
+
+Model with rank: 4
+Mean validation score: 0.320 (std: 0.003)
+Parameters: {'max_depth': 20, 'max_features': 'sqrt', 'n_estimators': 256}
+
+Model with rank: 5
+Mean validation score: 0.320 (std: 0.004)
+Parameters: {'max_depth': 5, 'max_features': None, 'n_estimators': 256}
+
+Model with rank: 6
+Mean validation score: 0.317 (std: 0.004)
+Parameters: {'max_depth': 5, 'max_features': None, 'n_estimators': 4}
+
+Model with rank: 7
+Mean validation score: 0.253 (std: 0.004)
+Parameters: {'max_depth': 20, 'max_features': None, 'n_estimators': 4}
+
+Model with rank: 8
+Mean validation score: 0.226 (std: 0.005)
+Parameters: {'max_depth': 25, 'max_features': None, 'n_estimators': 4}
+
+Model with rank: 9
+Mean validation score: 0.185 (std: 0.008)
+Parameters: {'max_depth': 20, 'max_features': 'sqrt', 'n_estimators': 4}
+
+Model with rank: 10
+Mean validation score: 0.171 (std: 0.009)
+Parameters: {'max_depth': 5, 'max_features': 'sqrt', 'n_estimators': 256}
+
+Model with rank: 11
+Mean validation score: 0.150 (std: 0.008)
+Parameters: {'max_depth': 25, 'max_features': 'sqrt', 'n_estimators': 4}
+
+Model with rank: 12
+Mean validation score: 0.124 (std: 0.029)
+Parameters: {'max_depth': 5, 'max_features': 'sqrt', 'n_estimators': 4}
+
+
+result 3:
+Model with rank: 1
+Mean validation score: 0.400 (std: 0.005)
+Parameters: {'max_depth': 25, 'max_features': None, 'n_estimators': 256}
+
+Model with rank: 2
+Mean validation score: 0.393 (std: 0.005)
+Parameters: {'max_depth': 20, 'max_features': None, 'n_estimators': 256}
+
+Model with rank: 3
+Mean validation score: 0.320 (std: 0.007)
+Parameters: {'max_depth': 20, 'max_features': None, 'n_estimators': 4}
+
+Model with rank: 4
+Mean validation score: 0.288 (std: 0.012)
+Parameters: {'max_depth': 25, 'max_features': None, 'n_estimators': 4}
+
+Model with rank: 5
+Mean validation score: 0.177 (std: 0.002)
+Parameters: {'max_depth': 25, 'max_features': 'sqrt', 'n_estimators': 256}
+
+Model with rank: 6
+Mean validation score: 0.152 (std: 0.008)
+Parameters: {'max_depth': 5, 'max_features': None, 'n_estimators': 256}
+
+Model with rank: 7
+Mean validation score: 0.139 (std: 0.002)
+Parameters: {'max_depth': 20, 'max_features': 'sqrt', 'n_estimators': 256}
+
+Model with rank: 8
+Mean validation score: 0.108 (std: 0.013)
+Parameters: {'max_depth': 20, 'max_features': 'sqrt', 'n_estimators': 4}
+
+Model with rank: 9
+Mean validation score: 0.105 (std: 0.011)
+Parameters: {'max_depth': 5, 'max_features': None, 'n_estimators': 4}
+
+Model with rank: 10
+Mean validation score: 0.091 (std: 0.009)
+Parameters: {'max_depth': 25, 'max_features': 'sqrt', 'n_estimators': 4}
+
+Model with rank: 11
+Mean validation score: 0.024 (std: 0.000)
+Parameters: {'max_depth': 5, 'max_features': 'sqrt', 'n_estimators': 256}
+
+Model with rank: 12
+Mean validation score: 0.018 (std: 0.001)
+Parameters: {'max_depth': 5, 'max_features': 'sqrt', 'n_estimators': 4}
